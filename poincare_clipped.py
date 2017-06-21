@@ -8,7 +8,7 @@ network = {}
 
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
-tot = 3
+tot = 5
 def newline(p1, p2):
     ax = plt.gca()
     xmin, xmax = ax.get_xbound()
@@ -86,6 +86,7 @@ def partial_der(theta, x, gamma): #eqn4
 
 lr = 0.01
 def update(emb, error_): #eqn5
+    global lr
     try:
         update =  lr*pow((1 - np.dot(emb,emb)), 2)*error_/4
         if (np.dot(update, update) >= 0.01):
@@ -120,11 +121,10 @@ pre_emb = emb.copy()
 running_mean = [1.0, 1.0, 1.0, 1.0, 1.0]
 
 pre_emb = emb.copy()
-for ii in range(800):
+for ii in range(30):
     # tmp = input()
-    print (ii)
+    print ("epoch", ii)
     for k in range(20):
-        print ("epoch", ii*40 + k + 1)
         for pos1 in vocab:
             j += 1
             if not network[pos1]:
@@ -135,18 +135,16 @@ for ii in range(800):
             poss = []
             negs = []
             dist_p_init = dist(emb[pos1], emb[pos2])
-            if (dist_p_init > 50): # cant exclude it their distance should be less
+            if (dist_p_init > 700): # cant exclude it their distance should be less
                 print ("got one very high")
                 print (emb[pos1], emb[pos2])
                 print (pre_emb[pos1], pre_emb[pos2])
-                dist_p_init = 50
-                continue
-            if (dist_p_init < -50): # cant exclude it their distance should be less
+                dist_p_init = 700
+            if (dist_p_init < -700): # cant exclude it their distance should be less
                 print ("got one very high")
                 print (emb[pos1], emb[pos2])
                 print (pre_emb[pos1], pre_emb[pos2])
-                dist_p_init = -50
-                continue
+                dist_p_init = -700
             dist_p = cosh(dist_p_init) # this is +ve
             # print ("dist_p_init", dist_p)
             dist_negs_init = []
@@ -155,7 +153,7 @@ for ii in range(800):
             while (len(negs) < J):
                 neg1 = pos1
                 neg2 = random.choice(vocab)
-                if not (neg2 in network[neg1] or neg1 in network[neg2]):
+                if not (neg2 in network[neg1] or neg1 in network[neg2] or neg2 == neg1):
                     dist_neg_init = dist(emb[neg1], emb[neg2])
                     if (dist_neg_init > 50 or dist_neg_init < -50): #already dist is good, leave it
                         continue
@@ -195,5 +193,7 @@ for ii in range(800):
             # print (i, j, loss, pos1, pos2)
         # print (loss_hist)
     # pre_emb = emb
+    # if ((ii+1) % 5 == 0):
+    #     lr /= 2
 
 plotall()

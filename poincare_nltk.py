@@ -145,7 +145,7 @@ for ii in range(1):
             while (len(negs) < J):
                 neg1 = pos1
                 neg2 = random.choice(vocab)
-                if not (neg2 in network[neg1] or neg1 in network[neg2]):
+                if not (neg2 in network[neg1] or neg1 in network[neg2] or neg2 == neg1):
                     dist_neg_init = dist(emb[neg1], emb[neg2])
                     if (dist_neg_init > 700 or dist_neg_init < -700): #already dist is good, leave it
                         continue
