@@ -1,14 +1,14 @@
 import nltk
 from nltk.corpus import wordnet as wn
-from math import *
 import random
 import numpy as np
 STABILITY = 0.00001
 network = {}
+from math import pow
 
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
-tot = 5
+tot = 3
 def newline(p1, p2):
     ax = plt.gca()
     xmin, xmax = ax.get_xbound()
@@ -62,6 +62,12 @@ levelOfNode[str(mammal)] = 0
 
 emb = {}
 
+for a in list(network.keys()):
+    for b in network[a]:
+        if b not in network:
+            network[b] = []
+        network[b].append(a)
+
 for a in network:
     for b in network[a]:
         emb[b] = np.random.uniform(low=-0.001, high=0.001, size=(2,))
@@ -69,10 +75,6 @@ for a in network:
 
 vocab = list(emb.keys())
 random.shuffle(vocab)
-
-for a in emb:
-    if not a in network:
-        network[a] = []
 
 ### Now the tough part
 
@@ -82,23 +84,22 @@ def partial_der(theta, x, gamma): #eqn4
     norm_x = np.dot(x, x)
     beta = (1-norm_x)
     gamma = gamma
-    return 4.0/(beta * sqrt(gamma*gamma - 1) + STABILITY)*((norm_x- 2*np.dot(theta, x)+1)/(pow(alpha,2)+STABILITY)*theta - x/(alpha + STABILITY))
+    return 4.0/(beta * np.sqrt(gamma*gamma - 1) + STABILITY)*((norm_x- 2*np.dot(theta, x)+1)/(pow(alpha,2)+STABILITY)*theta - x/(alpha + STABILITY))
 
 lr = 0.01
 def update(emb, error_): #eqn5
     global lr
     try:
         update =  lr*pow((1 - np.dot(emb,emb)), 2)*error_/4
-        if (np.dot(update, update) >= 0.01):
-            update = 0.1*update/sqrt(np.dot(update, update))
-        # print (update)
+        # if (np.dot(update, update) >= 0.01):
+        #     update = 0.1*update/sqrt(np.dot(update, update))
+        # # print (update)
         emb = emb - update
         if (np.dot(emb, emb) >= 1):
-            emb = emb/sqrt(np.dot(emb, emb)) - 0.1
+            emb = emb/np.sqrt(np.dot(emb, emb)) - STABILITY
         return emb
     except Exception as e:
         print (e)
-        temp = input()
 
 def dist(vec1, vec2): # eqn1
     return 1 + 2*np.dot(vec1 - vec2, vec1 - vec2)/ \
@@ -121,44 +122,50 @@ pre_emb = emb.copy()
 running_mean = [1.0, 1.0, 1.0, 1.0, 1.0]
 
 pre_emb = emb.copy()
-lr = 0.05
-for ii in range(30):
-    # tmp = input()
-    print ("epoch", ii)
-    for k in range(20):
-        for pos1 in vocab:
-            j += 1
-            if not network[pos1]:
-                continue
+lr = 0.1
+# for ii in range(10):
+#     # tmp = input()
+#     print ("epoch", ii)
+for k in range(20):
+    for pos1 in vocab:
+        for pos2 in network[pos1]:
             pos2 = random.choice(network[pos1])
             # print ("--------------START-------")
             poss = []
             negs = []
             dist_p_init = dist(emb[pos1], emb[pos2])
+            # print ("here")
             if (dist_p_init > 700): # cant exclude it their distance should be less
                 print ("got one very high")
                 print (emb[pos1], emb[pos2])
                 print (pre_emb[pos1], pre_emb[pos2])
                 dist_p_init = 700
+                continue
             if (dist_p_init < -700): # cant exclude it their distance should be less
                 print ("got one very high")
                 print (emb[pos1], emb[pos2])
                 print (pre_emb[pos1], pre_emb[pos2])
                 dist_p_init = -700
-            dist_p = cosh(dist_p_init) # this is +ve
+                continue
+            dist_p = np.arccosh(dist_p_init) # this is +ve
             # print ("dist_p_init", dist_p)
             dist_negs_init = []
             dist_negs = []
             neg_for_plot = []
             while (len(negs) < J):
+                # print ("here neg")
                 neg1 = pos1
                 neg2 = random.choice(vocab)
                 if not (neg2 in network[neg1] or neg1 in network[neg2] or neg2 == neg1):
                     dist_neg_init = dist(emb[neg1], emb[neg2])
-                    if (dist_neg_init > 50 or dist_neg_init < -50): #already dist is good, leave it
-                        continue
+                    if (dist_neg_init > 700):
+                        dist_neg_init = 700
+                        break
+                    elif (dist_neg_init < -700): #already dist is good, leave it
+                        dist_neg_init = -700
+                        break
                     negs.append([neg1, neg2])
-                    dist_neg = cosh(dist_neg_init)
+                    dist_neg = np.arccosh(dist_neg_init)
                     # print ("dist_neg", dist_neg)
                     dist_negs_init.append(dist_neg_init)
                     dist_negs.append(dist_neg)
@@ -166,12 +173,12 @@ for ii in range(30):
             # plotnow(pos1, pos2, neg_for_plot)
             loss_den = 0.0
             for dist_neg in dist_negs:
-                loss_den += exp(-1*dist_neg)
-            loss = -1*dist_p - log(loss_den + STABILITY)
+                loss_den += np.exp(-1*dist_neg)
+            loss = -1*dist_p - np.log(loss_den + STABILITY)
             der_p = -1 #+ exp(-1*dist_p)/(loss_den + STABILITY)
             der_negs = []
             for dist_neg in dist_negs:
-                der_negs.append(exp(-1*dist_neg)/(loss_den + STABILITY))
+                der_negs.append(np.exp(-1*dist_neg)/(loss_den + STABILITY))
             der_p_emb0 = der_p * partial_der(emb[pos1], emb[pos2], dist_p_init)
             der_p_emb1 = der_p * partial_der(emb[pos2], emb[pos1], dist_p_init)
             der_negs_final = []
@@ -185,34 +192,6 @@ for ii in range(30):
                 # emb[neg[0]] = update(emb[neg[0]], -1*der_neg[0])
                 emb[neg[1]] = update(emb[neg[1]], -1*der_neg[1])
             loss_hist = loss
-            # print ("dist_p_final", calc_dist_safe(emb[pos1], emb[pos2]))
-            # for a in negs:
-            #     print ("dist_neg", calc_dist_safe(emb[a[0]], emb[a[1]]))
-            # print ("-----------END------")
-            # plotnow(pos1, pos2, neg_for_plot)
-            # print (i, j, loss, pos1, pos2)
-        # print (loss_hist)
-    # pre_emb = emb
-    # if ((ii+1) % 5 == 0):
-    #     lr /= 2
 
 plotall()
-
-
-import autograd.numpy as np
-from autograd import grad
-from math import *
-
-def act_dist(vec1, vec2): # eqn1
-    return np.cosh(1 + 2*np.dot(vec1 - vec2, vec1 - vec2)/ \
-             ((1-np.dot(vec1, vec1))*(1-np.dot(vec2, vec2)) + STABILITY))
-
-
-def loss(x, a, b):
-    return np.log(np.exp(-1*x) / (np.exp(-1*a) + np.exp(-1*b) ))
-
-grad_0 = grad(loss, 0)
-grad_1 = grad(loss, 1)
-grad_2 = grad(loss, 2)
-
 

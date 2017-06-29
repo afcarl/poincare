@@ -8,7 +8,7 @@ network = {}
 
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
-tot = 5
+tot = 3
 def newline(p1, p2):
     ax = plt.gca()
     xmin, xmax = ax.get_xbound()
@@ -92,6 +92,8 @@ def update(emb, error_): #eqn5
         if (np.dot(update, update) >= 0.01):
             update = 0.1*update/sqrt(np.dot(update, update))
         # print (update)
+        if (np.dot(emb-update, emb-update) >= 1):
+            return emb
         emb = emb - update
         if (np.dot(emb, emb) >= 1):
             emb = emb/sqrt(np.dot(emb, emb)) - 0.1
@@ -106,7 +108,7 @@ def dist(vec1, vec2): # eqn1
 
 
 
-J = 5
+J = 2
 
 def calc_dist_safe(v1, v2):
     tmp = dist(v1, v2)
@@ -125,12 +127,15 @@ lr = 0.05
 for ii in range(30):
     # tmp = input()
     print ("epoch", ii)
+    if (ii == 5):
+        break
     for k in range(20):
         for pos1 in vocab:
             j += 1
             if not network[pos1]:
                 continue
             pos2 = random.choice(network[pos1])
+            i = random.choice([0,1])
             # print ("--------------START-------")
             poss = []
             negs = []
@@ -168,7 +173,7 @@ for ii in range(30):
             for dist_neg in dist_negs:
                 loss_den += exp(-1*dist_neg)
             loss = -1*dist_p - log(loss_den + STABILITY)
-            der_p = -1 #+ exp(-1*dist_p)/(loss_den + STABILITY)
+            der_p = -1 + exp(-1*dist_p)/(loss_den + STABILITY)
             der_negs = []
             for dist_neg in dist_negs:
                 der_negs.append(exp(-1*dist_neg)/(loss_den + STABILITY))
@@ -185,6 +190,7 @@ for ii in range(30):
                 # emb[neg[0]] = update(emb[neg[0]], -1*der_neg[0])
                 emb[neg[1]] = update(emb[neg[1]], -1*der_neg[1])
             loss_hist = loss
+    # break
             # print ("dist_p_final", calc_dist_safe(emb[pos1], emb[pos2]))
             # for a in negs:
             #     print ("dist_neg", calc_dist_safe(emb[a[0]], emb[a[1]]))
@@ -196,7 +202,7 @@ for ii in range(30):
     # if ((ii+1) % 5 == 0):
     #     lr /= 2
 
-plotall()
+# plotall()
 
 
 import autograd.numpy as np
@@ -216,3 +222,10 @@ grad_1 = grad(loss, 1)
 grad_2 = grad(loss, 2)
 
 
+print ("loss", loss(dist_p, dist_negs[0], dist_negs[1]))
+
+print ("grad_0", grad_0(dist_p, dist_negs[0], dist_negs[1]))
+
+print ("grad_1", grad_1(dist_p, dist_negs[0], dist_negs[1]))
+
+print ("grad_2", grad_2(dist_p, dist_negs[0], dist_negs[1]))

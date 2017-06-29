@@ -103,7 +103,7 @@ def dist(vec1, vec2): # eqn1
 
 
 
-J = 5
+J = 3
 
 def calc_dist_safe(v1, v2):
     tmp = dist(v1, v2)
@@ -112,80 +112,89 @@ def calc_dist_safe(v1, v2):
     return cosh(tmp)
 
 j = 0
-pre_emb = emb.copy()
 plotall("init")
-
+update_der = emb.copy()
 running_mean = [1.0, 1.0, 1.0, 1.0, 1.0]
 
-for ii in range(1):
+lr = 0.1
+pre_emb = emb.copy()
+for ii in range(100):
     # tmp = input()
     print (ii)
-    for k in range(20):
-        for pos1 in vocab:
-            j += 1
-            if not network[pos1]:
-                continue
-            pos2 = random.choice(network[pos1])
-            i = random.choice([0,1])
-            # print ("--------------START-------")
-            poss = []
-            negs = []
-            dist_p_init = dist(emb[pos1], emb[pos2])
-            if (dist_p_init > 700): # cant exclude it their distance should be less
-                print ("got one very high")
-                dist_p_init = 700
-            if (dist_p_init < -700): # cant exclude it their distance should be less
-                dist_p_init = -700
-            dist_p = cosh(dist_p_init) # this is +ve
+    for i in update_der:
+        update_der[i] = np.zeros(2)
+    for pos1 in vocab:
+        j += 1
+        if not network[pos1]:
+            continue
+        pos2 = random.choice(network[pos1])
+        i = random.choice([0,1])
+        # print ("--------------START-------")
+        poss = []
+        negs = []
+        dist_p_init = dist(emb[pos1], emb[pos2])
+        if (dist_p_init > 700): # cant exclude it their distance should be less
+            print ("got one very high")
+            dist_p_init = 700
+        if (dist_p_init < -700): # cant exclude it their distance should be less
+            dist_p_init = -700
+        dist_p = cosh(dist_p_init) # this is +ve
+        # print ("dist_p_init", dist_p)
+        dist_negs_init = []
+        dist_negs = []
+        neg_for_plot = []
+        while (len(negs) < J):
+            neg1 = pos1
+            neg2 = random.choice(vocab)
+            if not (neg2 in network[neg1] or neg1 in network[neg2] or neg2 == neg1):
+                dist_neg_init = dist(emb[neg1], emb[neg2])
+                if (dist_neg_init > 700): #already dist is good, leave it
+                    dist_neg_init = 700
+                if (dist_neg_init < -700):
+                    dist_neg_init = -700
+                negs.append([neg1, neg2])
+                dist_neg = cosh(dist_neg_init)
+                # print ("dist_neg", dist_neg)
+                dist_negs_init.append(dist_neg_init)
+                dist_negs.append(dist_neg)
+                neg_for_plot.append(neg2)
+        # plotnow(pos1, pos2, neg_for_plot)
+        loss_den = 0.0
+        for dist_neg in dist_negs:
+            loss_den += exp(-1*dist_neg)
+        loss = -1*dist_p - log(loss_den + STABILITY)
+        der_p = -1 + exp(-1*dist_p)/(loss_den + STABILITY)
+        der_negs = []
+        for dist_neg in dist_negs:
+            der_negs.append(exp(-1*dist_neg)/(loss_den + STABILITY))
+        der_p_emb0 = der_p * partial_der(emb[pos1], emb[pos2], dist_p_init)
+        der_p_emb1 = der_p * partial_der(emb[pos2], emb[pos1], dist_p_init)
+        der_negs_final = []
+        for (der_neg, neg, dist_neg_init) in zip(der_negs, negs, dist_negs_init):
+            der_neg1 = der_neg * partial_der(emb[neg[1]], emb[neg[0]], dist_neg_init)
+            der_neg0 = der_neg * partial_der(emb[neg[0]], emb[neg[1]], dist_neg_init)
+            der_negs_final.append([der_neg0, der_neg1])
+        update_der[pos1] -= der_p_emb0
+        update_der[pos2] -= der_p_emb1
+        # emb[pos1] = update(emb[pos1], -1*der_p_emb0)
+        # emb[pos2] = update(emb[pos2], -1*der_p_emb1)
+        for (neg, der_neg) in zip(negs, der_negs_final):
+            # emb[neg[0]] = update(emb[neg[0]], -1*der_neg[0])
+            update_der[neg[1]] -= der_neg[1]
+            # emb[neg[1]] = update(emb[neg[1]], -1*der_neg[1])
+        loss_hist = loss
+        # print ("dist_p_final", calc_dist_safe(emb[pos1], emb[pos2]))
+        # for a in negs:
+        #     print ("dist_neg", calc_dist_safe(emb[a[0]], emb[a[1]]))
+        # print ("-----------END------")
+        # plotnow(pos1, pos2, neg_for_plot)
+        # print (i, j, loss, pos1, pos2)
+    # print (loss_hist)
+    for i in update_der:
+        emb[i] = update(emb[i], update_der[i])
+# pre_emb = emb
 
-            print ("dist_p_init", dist_p)
-            dist_negs_init = []
-            dist_negs = []
-            neg_for_plot = []
-            while (len(negs) < J):
-                neg1 = pos1
-                neg2 = random.choice(vocab)
-                if not (neg2 in network[neg1] or neg1 in network[neg2] or neg2 == neg1):
-                    dist_neg_init = dist(emb[neg1], emb[neg2])
-                    if (dist_neg_init > 700 or dist_neg_init < -700): #already dist is good, leave it
-                        continue
-                    negs.append([neg1, neg2])
-                    dist_neg = cosh(dist_neg_init)
-                    # print ("dist_neg", dist_neg)
-                    dist_negs_init.append(dist_neg_init)
-                    dist_negs.append(dist_neg)
-                    neg_for_plot.append(neg2)
-            # plotnow(pos1, pos2, neg_for_plot)
-            loss_den = 0.0
-            for dist_neg in dist_negs:
-                loss_den += exp(-1*dist_neg)
-            loss = -1*dist_p - log(loss_den + STABILITY)
-            der_p = -1 + exp(-1*dist_p)/(loss_den + STABILITY)
-            der_negs = []
-            for dist_neg in dist_negs:
-                der_negs.append(exp(-1*dist_neg)/(loss_den + STABILITY))
-            der_p_emb0 = der_p * partial_der(emb[pos1], emb[pos2], dist_p_init)
-            der_p_emb1 = der_p * partial_der(emb[pos2], emb[pos1], dist_p_init)
-            der_negs_final = []
-            for (der_neg, neg, dist_neg_init) in zip(der_negs, negs, dist_negs_init):
-                der_neg1 = der_neg * partial_der(emb[neg[1]], emb[neg[0]], dist_neg_init)
-                der_neg0 = der_neg * partial_der(emb[neg[0]], emb[neg[1]], dist_neg_init)
-                der_negs_final.append([der_neg0, der_neg1])
-            emb[pos1] = update(emb[pos1], -1*der_p_emb0)
-            emb[pos2] = update(emb[pos2], -1*der_p_emb1)
-            for (neg, der_neg) in zip(negs, der_negs_final):
-                # emb[neg[0]] = update(emb[neg[0]], -1*der_neg[0])
-                emb[neg[1]] = update(emb[neg[1]], -1*der_neg[1])
-            loss_hist = loss
-            # print ("dist_p_final", calc_dist_safe(emb[pos1], emb[pos2]))
-            # for a in negs:
-            #     print ("dist_neg", calc_dist_safe(emb[a[0]], emb[a[1]]))
-            # print ("-----------END------")
-            # plotnow(pos1, pos2, neg_for_plot)
-            # print (i, j, loss, pos1, pos2)
-        # print (loss_hist)
-    # pre_emb = emb
-    plotall(ii)
+plotall(ii)
 
 
 pre_emb = emb.copy()
